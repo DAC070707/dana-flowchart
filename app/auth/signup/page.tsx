@@ -12,6 +12,7 @@ export default function SignupPage() {
   const [orgName, setOrgName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
@@ -21,46 +22,22 @@ export default function SignupPage() {
     setError('')
 
     try {
-      // 1. Sign up user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Organization + admin membership are created by the on_auth_user_created trigger
+      const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            name,
-          },
+          data: { name, org_name: orgName },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       })
 
       if (authError) throw authError
 
-      if (!authData.user) throw new Error('No user returned')
-
-      // 2. Create organization
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          name: orgName || 'Mi Empresa',
-          slug: orgName.toLowerCase().replace(/\s+/g, '-') || 'mi-empresa',
-          plan: 'free',
-          max_users: 3,
-          max_processes: 5,
-        })
-        .select()
-        .single()
-
-      if (orgError) throw orgError
-
-      // 3. Add user as admin
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert({
-          org_id: orgData.id,
-          user_id: authData.user.id,
-          role: 'admin',
-        })
-
-      if (memberError) throw memberError
+      if (!data.session) {
+        setInfo('Te enviamos un correo de confirmación. Ábrelo para activar tu cuenta.')
+        return
+      }
 
       router.push('/dashboard')
     } catch (err: any) {
@@ -77,6 +54,12 @@ export default function SignupPage() {
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg mb-6 text-sm">
           {error}
+        </div>
+      )}
+
+      {info && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg mb-6 text-sm">
+          {info}
         </div>
       )}
 
