@@ -39,12 +39,6 @@ export default function TasksPage() {
 
       if (!memberData) return
 
-      // Get tasks
-      const { data: tasksData } = await supabase
-        .from('task_assignments')
-        .select('id, title, process_id, assigned_to, due_date, completed')
-        .eq('org_id', memberData.org_id)
-
       // Mock data for now - will be connected to real data
       const mockTasks: Task[] = [
         {
