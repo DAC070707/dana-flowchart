@@ -17,6 +17,8 @@ interface ProcessRow {
   once_period: string | null
   due_day: number | null
   active: boolean
+  project_id: string
+  projects: { name: string; kind: 'internal' | 'external'; ruc: string | null; active: boolean }
   steps: { count: number }[]
 }
 
@@ -32,6 +34,19 @@ export default function ProcessesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
+  const [projectFilter, setProjectFilter] = useState('')
+
+  useEffect(() => {
+    setProjectFilter(new URLSearchParams(window.location.search).get('project') || '')
+  }, [])
+
+  const changeFilter = (id: string) => {
+    setProjectFilter(id)
+    const url = new URL(window.location.href)
+    if (id) url.searchParams.set('project', id)
+    else url.searchParams.delete('project')
+    window.history.replaceState(null, '', url)
+  }
 
   const load = async () => {
     const m = await getMembership()
@@ -40,13 +55,13 @@ export default function ProcessesPage() {
 
     const { data, error: loadError } = await createClient()
       .from('processes')
-      .select('id, name, description, color, recurrence, months, once_period, due_day, active, steps(count)')
+      .select('id, name, description, color, recurrence, months, once_period, due_day, active, project_id, projects(name, kind, ruc, active), steps(count)')
       .eq('org_id', m.orgId)
       .order('active', { ascending: false })
       .order('name')
 
     if (loadError) setError(loadError.message)
-    setProcesses((data as ProcessRow[]) || [])
+    setProcesses((data as unknown as ProcessRow[]) || [])
     setLoading(false)
   }
 
@@ -69,6 +84,17 @@ export default function ProcessesPage() {
   }
 
   const manage = canManage(me?.role)
+
+  const projectOptions = Array.from(
+    new Map(processes.map((p) => [p.project_id, p.projects.name])).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1]))
+
+  const groups = projectOptions
+    .filter(([id]) => !projectFilter || id === projectFilter)
+    .map(([id]) => {
+      const items = processes.filter((p) => p.project_id === id)
+      return { id, project: items[0].projects, items }
+    })
 
   return (
     <div className="space-y-8">
@@ -105,8 +131,32 @@ export default function ProcessesPage() {
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {processes.map((p) => (
+        <div className="space-y-8">
+          {projectOptions.length > 1 && (
+            <select value={projectFilter} onChange={(e) => changeFilter(e.target.value)} className="w-full sm:w-80">
+              <option value="">Todos los proyectos</option>
+              {projectOptions.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+          )}
+          {groups.map((g) => (
+        <section key={g.id} className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {g.project.name}
+              <span className="ml-2 text-sm font-normal text-slate-500">
+                {g.project.kind === 'external' ? `Externo · RUC ${g.project.ruc}` : 'Interno'}
+                {!g.project.active && ' · proyecto inhabilitado'}
+              </span>
+            </h2>
+            {manage && (
+              <Link href={`/dashboard/processes/new?project=${g.id}`} className="text-sm font-medium">
+                + Proceso en este proyecto
+              </Link>
+            )}
+          </div>
+          {g.items.map((p) => (
             <div
               key={p.id}
               className={`bg-white dark:bg-slate-800 p-5 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-4 ${
@@ -154,6 +204,8 @@ export default function ProcessesPage() {
                 </button>
               )}
             </div>
+          ))}
+        </section>
           ))}
         </div>
       )}

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { Member, getMembership } from '@/lib/org'
 import { monthLabel, monthStart, useMonth } from '@/lib/period'
+import { Project, projectLabel } from '@/lib/projects'
 
 export default function NewMonthTaskPage() {
   const [month] = useMonth()
@@ -14,6 +15,8 @@ export default function NewMonthTaskPage() {
   const [assignedTo, setAssignedTo] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [members, setMembers] = useState<Member[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectId, setProjectId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -21,8 +24,15 @@ export default function NewMonthTaskPage() {
   useEffect(() => {
     getMembership().then(async (me) => {
       if (!me) return
-      const { data } = await createClient().rpc('org_members', { p_org: me.orgId })
+      const supabase = createClient()
+      const [{ data }, { data: proj }] = await Promise.all([
+        supabase.rpc('org_members', { p_org: me.orgId }),
+        supabase.from('projects').select('id, kind, name, business_name, ruc, active').eq('org_id', me.orgId).eq('active', true).order('name'),
+      ])
       setMembers((data as Member[]) || [])
+      const list = (proj as Project[]) || []
+      setProjects(list)
+      if (list.length === 1) setProjectId(list[0].id)
     })
   }, [])
 
@@ -52,6 +62,7 @@ export default function NewMonthTaskPage() {
 
       const { error: taskError } = await supabase.from('task_assignments').insert({
         org_id: me.orgId,
+        project_id: projectId,
         period_id: period.id,
         assigned_to: assignedTo || null,
         assigned_by: me.userId,
@@ -85,6 +96,16 @@ export default function NewMonthTaskPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Proyecto</label>
+            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} required className="w-full">
+              <option value="">Selecciona un proyecto</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{projectLabel(p)}</option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-2">Título</label>
             <input
@@ -134,7 +155,7 @@ export default function NewMonthTaskPage() {
         <div className="flex gap-4">
           <button
             type="submit"
-            disabled={loading || !title.trim()}
+            disabled={loading || !title.trim() || !projectId}
             className="flex-1 bg-brand text-white font-medium py-3 rounded-lg hover:bg-brand-ink disabled:opacity-50 transition-colors"
           >
             {loading ? 'Creando...' : 'Crear tarea'}

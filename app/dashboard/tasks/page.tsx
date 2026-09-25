@@ -21,6 +21,8 @@ interface TaskRow {
   due_date: string | null
   assigned_to: string | null
   process_id: string | null
+  project_id: string | null
+  projects: { name: string } | null
   processes: { name: string; color: string; steps: { count: number }[] } | null
   step_progress: { completed: boolean }[]
 }
@@ -34,6 +36,7 @@ export default function MonthTasksPage() {
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed' | 'mine'>('all')
+  const [projectFilter, setProjectFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -60,7 +63,7 @@ export default function MonthTasksPage() {
     const [{ data: t, error: tasksError }, { data: mem }] = await Promise.all([
       supabase
         .from('task_assignments')
-        .select('id, title, status, due_date, assigned_to, process_id, processes(name, color, steps(count)), step_progress(completed)')
+        .select('id, title, status, due_date, assigned_to, process_id, project_id, projects(name), processes(name, color, steps(count)), step_progress(completed)')
         .eq('period_id', p.id),
       supabase.rpc('org_members', { p_org: m.orgId }),
     ])
@@ -116,7 +119,12 @@ export default function MonthTasksPage() {
   const pending = active.length - done
   const memberName = (id: string | null) => members.find((m) => m.user_id === id)?.name || 'Sin asignar'
 
+  const projectOptions = Array.from(
+    new Map(tasks.filter((t) => t.project_id).map((t) => [t.project_id as string, t.projects?.name || ''])).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1]))
+
   const visible = tasks.filter((t) => {
+    if (projectFilter && t.project_id !== projectFilter) return false
     if (filter === 'pending') return t.status === 'pending'
     if (filter === 'completed') return t.status === 'completed'
     if (filter === 'mine') return t.assigned_to === me?.userId
@@ -196,6 +204,14 @@ export default function MonthTasksPage() {
       )}
 
       {/* Filters */}
+      {projectOptions.length > 1 && (
+        <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)} className="w-full sm:w-80">
+          <option value="">Todos los proyectos</option>
+          {projectOptions.map(([id, name]) => (
+            <option key={id} value={id}>{name}</option>
+          ))}
+        </select>
+      )}
       <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
         {([
           ['all', 'Todas'],
@@ -250,6 +266,7 @@ export default function MonthTasksPage() {
                     <div className="min-w-0">
                       <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-brand">{task.title}</h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {task.projects?.name && <span className="font-medium text-slate-700 dark:text-slate-300">{task.projects.name} · </span>}
                         {task.process_id ? 'Proceso fijo' : 'Tarea puntual'}
                         {total > 0 && ` · ${completedSteps}/${total} pasos`}
                       </p>

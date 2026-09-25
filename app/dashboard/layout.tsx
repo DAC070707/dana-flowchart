@@ -54,8 +54,10 @@ export default function DashboardLayout({
 
         <nav className="p-4 space-y-2">
           <NavLink href="/dashboard" icon="📊" label="Dashboard" expanded={sidebarOpen} />
+          <NavLink href="/dashboard/projects" icon="📁" label="Proyectos" expanded={sidebarOpen} />
           <NavLink href="/dashboard/processes" icon="⚙️" label="Procesos" expanded={sidebarOpen} />
           <NavLink href="/dashboard/tasks" icon="✓" label="Mes de trabajo" expanded={sidebarOpen} />
+          <NavLink href="/dashboard/org-chart" icon="🏢" label="Organigrama" expanded={sidebarOpen} />
           <NavLink href="/dashboard/reports" icon="📈" label="Reportes" expanded={sidebarOpen} />
           <NavLink href="/dashboard/team" icon="👥" label="Equipo" expanded={sidebarOpen} />
         </nav>
