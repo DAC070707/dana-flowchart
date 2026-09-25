@@ -24,6 +24,7 @@ interface TaskRow {
   project_id: string | null
   projects: { name: string } | null
   processes: { name: string; color: string; steps: { count: number }[] } | null
+  own_steps: { count: number }[]
   step_progress: { completed: boolean }[]
 }
 
@@ -63,7 +64,7 @@ export default function MonthTasksPage() {
     const [{ data: t, error: tasksError }, { data: mem }] = await Promise.all([
       supabase
         .from('task_assignments')
-        .select('id, title, status, due_date, assigned_to, process_id, project_id, projects(name), processes(name, color, steps(count)), step_progress(completed)')
+        .select('id, title, status, due_date, assigned_to, process_id, project_id, projects(name), processes(name, color, steps(count)), own_steps:steps!steps_task_id_fkey(count), step_progress(completed)')
         .eq('period_id', p.id),
       supabase.rpc('org_members', { p_org: m.orgId }),
     ])
@@ -245,7 +246,7 @@ export default function MonthTasksPage() {
       ) : (
         <div className="space-y-3">
           {visible.map((task) => {
-            const total = task.processes?.steps[0]?.count ?? 0
+            const total = (task.processes?.steps[0]?.count ?? 0) + (task.own_steps?.[0]?.count ?? 0)
             const completedSteps = task.step_progress.filter((s) => s.completed).length
             const progress = task.status === 'completed' ? 100 : total ? Math.round((completedSteps / total) * 100) : 0
             const editable = manage && isOpen && task.status !== 'cancelled'

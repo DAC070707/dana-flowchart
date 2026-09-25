@@ -7,6 +7,7 @@ export interface DiagramStep {
   id: string
   title: string
   description: string | null
+  due_date?: string | null
   done: boolean
 }
 
@@ -25,10 +26,12 @@ export default function ProcessDiagram({
   steps,
   canEdit,
   onToggle,
+  today,
 }: {
   steps: DiagramStep[]
   canEdit: boolean
   onToggle: (stepId: string) => void
+  today: string
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
@@ -168,8 +171,19 @@ export default function ProcessDiagram({
                   {n.step.title}
                 </span>
                 {n.step.description && (
-                  <span className="mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-400 line-clamp-3">
+                  <span className={`mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-400 ${n.step.due_date ? 'line-clamp-2' : 'line-clamp-3'}`}>
                     {n.step.description}
+                  </span>
+                )}
+                {n.step.due_date && (
+                  <span
+                    className={`mt-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      !n.step.done && n.step.due_date < today
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                        : 'bg-white/80 text-slate-600 dark:bg-slate-900/60 dark:text-slate-300'
+                    }`}
+                  >
+                    {n.step.due_date.split('-').reverse().join('/')}
                   </span>
                 )}
               </button>

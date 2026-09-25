@@ -25,6 +25,7 @@ interface Step {
   title: string
   description: string | null
   order: number
+  due_date: string | null
 }
 
 interface Task {
@@ -38,6 +39,7 @@ interface Task {
   periods: { period: string; status: 'open' | 'closed' }
   projects: { name: string; kind: 'internal' | 'external'; ruc: string | null } | null
   processes: { name: string; steps: Step[] } | null
+  own_steps: Step[]
   step_progress: { step_id: string; completed: boolean }[]
 }
 
@@ -73,7 +75,7 @@ export default function TaskDetailPage() {
     const { data, error: loadError } = await supabase
       .from('task_assignments')
       .select(
-        'id, title, description, status, due_date, assigned_to, process_id, periods(period, status), projects(name, kind, ruc), processes(name, steps(id, title, description, order)), step_progress(step_id, completed)'
+        'id, title, description, status, due_date, assigned_to, process_id, periods(period, status), projects(name, kind, ruc), processes(name, steps(id, title, description, order, due_date)), own_steps:steps!steps_task_id_fkey(id, title, description, order, due_date), step_progress(step_id, completed)'
       )
       .eq('id', taskId)
       .maybeSingle()
@@ -94,7 +96,7 @@ export default function TaskDetailPage() {
   if (!task) return <div className="text-center py-12">No se encontró la tarea.</div>
 
   const monthKey = task.periods.period.slice(0, 7)
-  const steps = [...(task.processes?.steps || [])].sort((a, b) => a.order - b.order)
+  const steps = [...(task.processes?.steps || []), ...(task.own_steps || [])].sort((a, b) => a.order - b.order)
   const doneIds = new Set(task.step_progress.filter((s) => s.completed).map((s) => s.step_id))
   const completedSteps = steps.filter((s) => doneIds.has(s.id)).length
   const progress = task.status === 'completed' ? 100 : steps.length ? Math.round((completedSteps / steps.length) * 100) : 0
@@ -223,7 +225,14 @@ export default function TaskDetailPage() {
           {view === 'diagram' ? (
             <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 ${saving ? 'opacity-70' : ''}`}>
               <ProcessDiagram
-                steps={steps.map((s) => ({ id: s.id, title: s.title, description: s.description, done: doneIds.has(s.id) }))}
+                steps={steps.map((s) => ({
+                  id: s.id,
+                  title: s.title,
+                  description: s.description,
+                  due_date: s.due_date,
+                  done: doneIds.has(s.id),
+                }))}
+                today={today}
                 canEdit={canEdit && !saving}
                 onToggle={toggleStep}
               />
@@ -258,6 +267,15 @@ export default function TaskDetailPage() {
                         </h3>
                         {step.description && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{step.description}</p>}
                       </div>
+                      {step.due_date && (
+                        <span
+                          className={`text-sm font-medium flex-shrink-0 ${
+                            !done && step.due_date < today ? 'text-red-600' : 'text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {step.due_date.split('-').reverse().join('/')}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )
