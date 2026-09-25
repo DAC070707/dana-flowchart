@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { getMembership, ROLE_LABELS } from '@/lib/org'
+import type { UserRole } from '@/lib/types'
 import { Menu, X, LogOut } from 'lucide-react'
 
 export default function DashboardLayout({
@@ -13,6 +15,7 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [user, setUser] = useState<any>(null)
+  const [role, setRole] = useState<UserRole | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -23,6 +26,8 @@ export default function DashboardLayout({
         router.push('/auth/login')
       } else {
         setUser(user)
+        const me = await getMembership()
+        setRole(me?.role ?? null)
       }
     }
     getUser()
@@ -50,7 +55,7 @@ export default function DashboardLayout({
         <nav className="p-4 space-y-2">
           <NavLink href="/dashboard" icon="📊" label="Dashboard" expanded={sidebarOpen} />
           <NavLink href="/dashboard/processes" icon="⚙️" label="Procesos" expanded={sidebarOpen} />
-          <NavLink href="/dashboard/tasks" icon="✓" label="Tareas" expanded={sidebarOpen} />
+          <NavLink href="/dashboard/tasks" icon="✓" label="Mes de trabajo" expanded={sidebarOpen} />
           <NavLink href="/dashboard/reports" icon="📈" label="Reportes" expanded={sidebarOpen} />
           <NavLink href="/dashboard/team" icon="👥" label="Equipo" expanded={sidebarOpen} />
         </nav>
@@ -76,7 +81,7 @@ export default function DashboardLayout({
             {user && (
               <div className="text-right">
                 <p className="text-sm font-medium text-slate-900 dark:text-white">{user.email}</p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Admin</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">{role ? ROLE_LABELS[role] : ''}</p>
               </div>
             )}
             <img

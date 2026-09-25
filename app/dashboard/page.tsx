@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getMembership } from '@/lib/org'
+import { monthLabel, monthStart, useMonth } from '@/lib/period'
 import { TrendingUp, Users, CheckCircle, Clock } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -12,42 +14,32 @@ export default function DashboardPage() {
     pending: 0,
   })
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [month] = useMonth()
 
   useEffect(() => {
+    if (!month) return
     const loadStats = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const supabase = createClient()
+        const me = await getMembership()
+        if (!me) return
 
-        // Get user's organization
-        const { data: memberData } = await supabase
-          .from('organization_members')
-          .select('org_id')
-          .eq('user_id', user.id)
-          .single()
+        const { data: period, error } = await supabase.rpc('ensure_period', {
+          p_org: me.orgId,
+          p_period: monthStart(month),
+        })
+        if (error) throw error
 
-        if (!memberData) return
-
-        const orgId = memberData.org_id
-
-        // Get processes
-        const { data: processes } = await supabase
-          .from('processes')
-          .select('id')
-          .eq('org_id', orgId)
-
-        // Get tasks
-        const { data: tasks } = await supabase
-          .from('task_assignments')
-          .select('id, completed')
-          .eq('org_id', orgId)
+        const [{ count: processes }, { data: tasks }] = await Promise.all([
+          supabase.from('processes').select('id', { count: 'exact', head: true }).eq('org_id', me.orgId).eq('active', true),
+          supabase.from('task_assignments').select('status').eq('period_id', period.id).neq('status', 'cancelled'),
+        ])
 
         setStats({
-          processes: processes?.length || 0,
+          processes: processes || 0,
           tasks: tasks?.length || 0,
-          completed: tasks?.filter((t: any) => t.completed)?.length || 0,
-          pending: tasks?.filter((t: any) => !t.completed)?.length || 0,
+          completed: tasks?.filter((t) => t.status === 'completed').length || 0,
+          pending: tasks?.filter((t) => t.status === 'pending').length || 0,
         })
       } catch (error) {
         console.error('Error loading stats:', error)
@@ -57,7 +49,7 @@ export default function DashboardPage() {
     }
 
     loadStats()
-  }, [supabase])
+  }, [month])
 
   return (
     <div className="space-y-8">
@@ -68,16 +60,22 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats grid */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">{month && monthLabel(month)}</h2>
+        <a href={`/dashboard/tasks?m=${month}`} className="text-sm font-medium text-brand hover:text-brand-ink">
+          Ver mes de trabajo →
+        </a>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCard
           icon={<TrendingUp className="w-6 h-6 text-blue-500" />}
-          label="Procesos"
+          label="Procesos activos"
           value={stats.processes}
           loading={loading}
         />
         <StatCard
           icon={<Users className="w-6 h-6 text-green-500" />}
-          label="Tareas"
+          label="Tareas del mes"
           value={stats.tasks}
           loading={loading}
         />
@@ -105,9 +103,9 @@ export default function DashboardPage() {
             href="/dashboard/processes/new"
           />
           <QuickActionButton
-            title="Asignar tarea"
-            description="Asigna una tarea a un miembro del equipo"
-            href="/dashboard/tasks/new"
+            title="Mes de trabajo"
+            description="Asigna y sigue las tareas del mes"
+            href={`/dashboard/tasks?m=${month}`}
           />
           <QuickActionButton
             title="Ver reportes"

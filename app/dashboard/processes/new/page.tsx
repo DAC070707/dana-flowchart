@@ -4,7 +4,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { getMembership } from '@/lib/org'
+import { MONTH_NAMES, currentMonthKey, monthStart } from '@/lib/period'
 import { Plus, Trash2 } from 'lucide-react'
+
+type Recurrence = 'monthly' | 'months' | 'once'
 
 interface Step {
   id: string
@@ -17,6 +21,10 @@ export default function NewProcessPage() {
   const [processName, setProcessName] = useState('')
   const [processDescription, setProcessDescription] = useState('')
   const [color, setColor] = useState('#1F6F63')
+  const [recurrence, setRecurrence] = useState<Recurrence>('monthly')
+  const [months, setMonths] = useState<number[]>([])
+  const [onceMonth, setOnceMonth] = useState(currentMonthKey)
+  const [dueDay, setDueDay] = useState('')
   const [steps, setSteps] = useState<Step[]>([])
   const [newStepTitle, setNewStepTitle] = useState('')
   const [loading, setLoading] = useState(false)
@@ -53,27 +61,25 @@ export default function NewProcessPage() {
     setError('')
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user found')
+      if (recurrence === 'months' && months.length === 0) {
+        throw new Error('Selecciona al menos un mes')
+      }
 
-      // Get user's organization
-      const { data: memberData } = await supabase
-        .from('organization_members')
-        .select('org_id')
-        .eq('user_id', user.id)
-        .single()
+      const me = await getMembership()
+      if (!me) throw new Error('No se encontró tu organización')
 
-      if (!memberData) throw new Error('No organization found')
-
-      // Create process
       const { data: processData, error: processError } = await supabase
         .from('processes')
         .insert({
-          org_id: memberData.org_id,
+          org_id: me.orgId,
           name: processName,
           description: processDescription,
           color,
-          created_by: user.id,
+          created_by: me.userId,
+          recurrence,
+          months: recurrence === 'months' ? [...months].sort((a, b) => a - b) : [],
+          once_period: recurrence === 'once' ? monthStart(onceMonth) : null,
+          due_day: dueDay ? parseInt(dueDay) : null,
         })
         .select()
         .single()
@@ -154,6 +160,80 @@ export default function NewProcessPage() {
               onChange={(e) => setColor(e.target.value)}
               className="w-16 h-10 rounded cursor-pointer"
             />
+          </div>
+        </div>
+
+        {/* Recurrence */}
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+          <h2 className="text-xl font-bold">¿Cuándo se aplica?</h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {([
+              ['monthly', 'Todos los meses', 'Se repite cada mes'],
+              ['months', 'Meses específicos', 'Solo en los meses que elijas'],
+              ['once', 'Solo un mes', 'Una sola vez'],
+            ] as const).map(([value, label, hint]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRecurrence(value)}
+                className={`text-left p-4 rounded-lg border-2 transition-colors ${
+                  recurrence === value
+                    ? 'border-brand bg-brand/5'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <p className="font-medium">{label}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{hint}</p>
+              </button>
+            ))}
+          </div>
+
+          {recurrence === 'months' && (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {MONTH_NAMES.map((name, idx) => {
+                const m = idx + 1
+                const checked = months.includes(m)
+                return (
+                  <label
+                    key={m}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm ${
+                      checked ? 'border-brand bg-brand/5' : 'border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setMonths(checked ? months.filter((x) => x !== m) : [...months, m])}
+                    />
+                    {name}
+                  </label>
+                )
+              })}
+            </div>
+          )}
+
+          {recurrence === 'once' && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Mes</label>
+              <input type="month" value={onceMonth} onChange={(e) => setOnceMonth(e.target.value)} required />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Día de vencimiento (opcional)</label>
+            <input
+              type="number"
+              min={1}
+              max={31}
+              value={dueDay}
+              onChange={(e) => setDueDay(e.target.value)}
+              placeholder="Ej: 15"
+              className="w-32"
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Cada mes la tarea vencerá ese día. Si el mes tiene menos días, vence el último día.
+            </p>
           </div>
         </div>
 
