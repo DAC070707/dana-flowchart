@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
 import { ArrowLeft, CheckCircle } from 'lucide-react'
 
 interface Step {
@@ -20,7 +19,6 @@ export default function TaskDetailPage() {
   const [task, setTask] = useState<any>(null)
   const [steps, setSteps] = useState<Step[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     loadTask()
