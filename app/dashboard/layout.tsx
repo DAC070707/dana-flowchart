@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
-import { Menu, X, LogOut, Settings } from 'lucide-react'
+import { Menu, X, LogOut } from 'lucide-react'
 
 export default function DashboardLayout({
   children,
