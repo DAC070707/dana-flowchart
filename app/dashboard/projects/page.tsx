@@ -8,7 +8,7 @@ import Modal from '@/components/Modal'
 import { Membership, canManage, getMembership } from '@/lib/org'
 import { Project, isValidRuc } from '@/lib/projects'
 
-type ProjectRow = Project & { processes: { count: number }[] }
+type ProjectRow = Project & { process_projects: { count: number }[] }
 
 const EMPTY_FORM = { kind: 'external' as Project['kind'], name: '', business_name: '', ruc: '' }
 
@@ -28,7 +28,7 @@ export default function ProjectsPage() {
     if (!m) return setLoading(false)
     const { data, error: loadError } = await createClient()
       .from('projects')
-      .select('id, kind, name, business_name, ruc, active, processes(count)')
+      .select('id, kind, name, business_name, ruc, active, process_projects(count)')
       .eq('org_id', m.orgId)
       .order('active', { ascending: false })
       .order('name')
@@ -161,7 +161,7 @@ export default function ProjectsPage() {
 
               <div className="flex items-center justify-between gap-2 mt-4 flex-wrap">
                 <Link href={`/dashboard/processes?project=${p.id}`} className="text-sm font-medium">
-                  {p.processes[0]?.count ?? 0} procesos →
+                  {p.process_projects[0]?.count ?? 0} procesos →
                 </Link>
                 {manage && (
                   <div className="flex gap-2">

@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { getMembership } from '@/lib/org'
-import { Project, projectLabel } from '@/lib/projects'
+import { Project } from '@/lib/projects'
+import ProjectPicker from '@/components/ProjectPicker'
 import { MONTH_NAMES, currentMonthKey, monthStart } from '@/lib/period'
 import { Plus, Trash2 } from 'lucide-react'
 
@@ -20,7 +21,7 @@ interface Step {
 
 export default function NewProcessPage() {
   const [projects, setProjects] = useState<Project[] | null>(null)
-  const [projectId, setProjectId] = useState('')
+  const [projectIds, setProjectIds] = useState<string[]>([])
   const [processName, setProcessName] = useState('')
   const [processDescription, setProcessDescription] = useState('')
   const [color, setColor] = useState('#1F6F63')
@@ -47,8 +48,8 @@ export default function NewProcessPage() {
       const list = (data as Project[]) || []
       setProjects(list)
       const preset = new URLSearchParams(window.location.search).get('project')
-      if (preset && list.some((p) => p.id === preset)) setProjectId(preset)
-      else if (list.length === 1) setProjectId(list[0].id)
+      if (preset && list.some((p) => p.id === preset)) setProjectIds([preset])
+      else if (list.length === 1) setProjectIds([list[0].id])
     })
   }, [])
 
@@ -81,7 +82,7 @@ export default function NewProcessPage() {
     setError('')
 
     try {
-      if (!projectId) throw new Error('Selecciona el proyecto al que pertenece el proceso')
+      if (projectIds.length === 0) throw new Error('Selecciona al menos un proyecto')
       if (recurrence === 'months' && months.length === 0) {
         throw new Error('Selecciona al menos un mes')
       }
@@ -89,41 +90,19 @@ export default function NewProcessPage() {
       const me = await getMembership()
       if (!me) throw new Error('No se encontró tu organización')
 
-      const { data: processData, error: processError } = await supabase
-        .from('processes')
-        .insert({
-          org_id: me.orgId,
-          project_id: projectId,
-          name: processName,
-          description: processDescription,
-          color,
-          created_by: me.userId,
-          recurrence,
-          months: recurrence === 'months' ? [...months].sort((a, b) => a - b) : [],
-          once_period: recurrence === 'once' ? monthStart(onceMonth) : null,
-          due_day: dueDay ? parseInt(dueDay) : null,
-        })
-        .select()
-        .single()
-
+      const { error: processError } = await supabase.rpc('create_process', {
+        p_org: me.orgId,
+        p_name: processName,
+        p_description: processDescription,
+        p_color: color,
+        p_recurrence: recurrence,
+        p_months: recurrence === 'months' ? [...months].sort((a, b) => a - b) : [],
+        p_once_period: recurrence === 'once' ? monthStart(onceMonth) : null,
+        p_due_day: dueDay ? parseInt(dueDay) : null,
+        p_project_ids: projectIds,
+        p_steps: steps.map((s) => ({ title: s.title, description: s.description, duration_days: s.duration_days ?? null })),
+      })
       if (processError) throw processError
-
-      // Create steps
-      if (steps.length > 0) {
-        const stepsToInsert = steps.map((step, idx) => ({
-          process_id: processData.id,
-          title: step.title,
-          description: step.description,
-          order: idx + 1,
-          duration_days: step.duration_days,
-        }))
-
-        const { error: stepsError } = await supabase
-          .from('steps')
-          .insert(stepsToInsert)
-
-        if (stepsError) throw stepsError
-      }
 
       router.push('/dashboard/processes')
     } catch (err: any) {
@@ -152,18 +131,13 @@ export default function NewProcessPage() {
           <h2 className="text-xl font-bold">Información del proceso</h2>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Proyecto</label>
+            <label className="block text-sm font-medium mb-2">Proyectos</label>
             {projects && projects.length === 0 ? (
               <p className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-                Primero debes <Link href="/dashboard/projects" className="font-medium underline">crear un proyecto</Link>. Todo proceso pertenece a uno.
+                Primero debes <Link href="/dashboard/projects" className="font-medium underline">crear un proyecto</Link>. Todo proceso pertenece al menos a uno.
               </p>
             ) : (
-              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} required className="w-full">
-                <option value="">Selecciona un proyecto</option>
-                {projects?.map((p) => (
-                  <option key={p.id} value={p.id}>{projectLabel(p)}</option>
-                ))}
-              </select>
+              projects && <ProjectPicker projects={projects} selected={projectIds} onChange={setProjectIds} />
             )}
           </div>
 
@@ -350,7 +324,7 @@ export default function NewProcessPage() {
         <div className="flex gap-4">
           <button
             type="submit"
-            disabled={loading || !processName.trim() || !projectId}
+            disabled={loading || !processName.trim() || projectIds.length === 0}
             className="flex-1 bg-brand text-white font-medium py-3 rounded-lg hover:bg-brand-ink disabled:opacity-50 transition-colors"
           >
             {loading ? 'Creando...' : 'Crear proceso'}
