@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import GoogleButton from '@/components/GoogleButton'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -62,6 +63,8 @@ export default function SignupPage() {
           {info}
         </div>
       )}
+
+      <GoogleButton onError={setError} />
 
       <form onSubmit={handleSignup} className="space-y-4">
         <div>

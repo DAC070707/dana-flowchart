@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import GoogleButton from '@/components/GoogleButton'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -43,6 +44,8 @@ export default function LoginPage() {
           {error}
         </div>
       )}
+
+      <GoogleButton onError={setError} />
 
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
