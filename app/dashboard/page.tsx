@@ -46,8 +46,8 @@ export default function DashboardPage() {
         setStats({
           processes: processes?.length || 0,
           tasks: tasks?.length || 0,
-          completed: tasks?.filter(t => t.completed)?.length || 0,
-          pending: tasks?.filter(t => !t.completed)?.length || 0,
+          completed: tasks?.filter((t: any) => t.completed)?.length || 0,
+          pending: tasks?.filter((t: any) => !t.completed)?.length || 0,
         })
       } catch (error) {
         console.error('Error loading stats:', error)
